@@ -94,7 +94,7 @@ function create_network()
     local pred               = nn.LogSoftMax()(h2y(dropped))
     local err                = nn.ClassNLLCriterion()({pred, y})
     local module             = nn.gModule({x, y, prev_s},
-                                      {err, nn.Identity()(next_s)})
+                                      {err, nn.Identity()(next_s), pred})
     -- initialize weights
     module:getParameters():uniform(-params.init_weight, params.init_weight)
     return transfer_data(module)
@@ -152,7 +152,13 @@ function fp(state)
         local x = state.data[state.pos]
         local y = state.data[state.pos + 1]
         local s = model.s[i - 1]
-        model.err[i], model.s[i] = unpack(model.rnns[i]:forward({x, y, s}))
+        model.err[i], model.s[i], pred = unpack(model.rnns[i]:forward({x, y, s}))
+        -- test
+        --[[
+        print("predict is here...")
+        _, local_ind = torch.max(pred,2)
+        print(local_ind[1][1])
+        --]]
         state.pos = state.pos + 1
     end
     
@@ -175,9 +181,10 @@ function bp(state)
         local s = model.s[i - 1]
         -- Why 1?
         local derr = transfer_data(torch.ones(1))
+        local pred = transfer_data(torch.Tensor(params.batch_size, params.vocab_size))
         -- tmp stores the ds
         local tmp = model.rnns[i]:backward({x, y, s},
-                                           {derr, model.ds})[3]
+                                           {derr, model.ds, pred})[3]
         -- remember (to, from)
         g_replace_table(model.ds, tmp)
     end
@@ -224,7 +231,7 @@ function run_test()
     for i = 1, (len - 1) do
         local x = state_test.data[i]
         local y = state_test.data[i + 1]
-        perp_tmp, model.s[1] = unpack(model.rnns[1]:forward({x, y, model.s[0]}))
+        perp_tmp, model.s[1], pred = unpack(model.rnns[1]:forward({x, y, model.s[0]}))
         perp = perp + perp_tmp[1]
         g_replace_table(model.s[0], model.s[1])
     end
@@ -293,7 +300,21 @@ while epoch < params.max_max_epoch do
         if epoch > params.max_epoch then
             params.lr = params.lr / params.decay
         end
+        --save model
+        --[[
+        if step/epoch_size > 5 then
+            local filename = './model/model.net'
+            print('==> saving model to ')
+            print(filename)
+            torch.save(filename, model)
+        end
+        ]]--
     end
 end
 run_test()
+--save model
+filename = './model/model.net'
+print('==> saving model to ')
+print(filename)
+torch.save(filename, model)
 print("Training is over.")
