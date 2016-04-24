@@ -59,9 +59,19 @@ function makePrediction(ind_seq)
 	local y = torch.DoubleTensor(batch_size):fill(ind_seq[known_len+1])
 	for i = 1, pred_len do
 		_, model.s[1], pred = unpack(model.rnns[1]:forward({x,y,model.s[0]}))
-		_, pred_tensor = torch.max(pred, 2)
-		x = torch.DoubleTensor(batch_size):fill(pred_tensor[1][1])
-		pred_seq[i] = pred_tensor[1][1]
+		--pick the most probable word
+		if criterion == "max" then
+			_, pred_tensor = torch.max(pred, 2)
+			x = torch.DoubleTensor(batch_size):fill(pred_tensor[1][1])
+			pred_seq[i] = pred_tensor[1][1]
+		--sample a word from multinomial distribution
+		elseif criterion == "multinomial" then
+			local pred_log = pred[1]
+			local pred_exp = torch.exp(pred_log)
+			local pred_ind = torch.multinomial(pred_exp, 1)[1]
+			x = torch.DoubleTensor(batch_size):fill(pred_ind)
+			pred_seq[i] = pred_ind
+		end
 		g_replace_table(model.s[0], model.s[1])
 	end
 	return pred_seq
@@ -93,6 +103,8 @@ ind2word = torch.load(ind2word_file)
 
 num_layers=2 --the same with settings in main.lua
 batch_size=20 --the same with settings in main.lua
+--criterion="max"
+criterion="multinomial"
 
 while true do
 	print("Query: len word1 word2 etc")
