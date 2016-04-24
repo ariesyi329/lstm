@@ -6,8 +6,12 @@ require('torch')
 
 --reset start state to zeros
 function reset_state()
+	local d_num_layers = num_layers
+	if model_type == "lstm" then
+		d_num_layers = 2 * num_layers
+	end
     if model ~= nil and model.start_s ~= nil then
-        for d = 1, 2 * num_layers do
+        for d = 1, d_num_layers do
             model.start_s[d]:zero()
         end
     end
@@ -40,7 +44,7 @@ function makePrediction(ind_seq)
 	local pred_len = tonumber(ind_seq[1])
 
 	--initialize start state
-	reset_state(num_layers)
+	reset_state()
 	g_disable_dropout(model.rnns)
 	g_replace_table(model.s[0], model.start_s)
 
@@ -91,9 +95,16 @@ function outputPrediction(input_seq, pred_seq)
 	print(output)
 end
 
+num_layers=2 --the same with settings in main.lua
+batch_size=20 --the same with settings in main.lua
+--criterion="max"
+criterion="multinomial"
+--model type: lstm or gru
+model_type="lstm"
+
 --load model and lexicon
 print("==> Loading model ...")
-local model_file = "./model/model.net"
+local model_file = "./model/"..model_type.."/model.net"
 model = torch.load(model_file)
 print("==> Loading lexicon ...")
 local word2ind_file = "./map/word2ind.t7"
@@ -101,10 +112,6 @@ local ind2word_file = "./map/ind2word.t7"
 word2ind = torch.load(word2ind_file)
 ind2word = torch.load(ind2word_file)
 
-num_layers=2 --the same with settings in main.lua
-batch_size=20 --the same with settings in main.lua
---criterion="max"
-criterion="multinomial"
 
 while true do
 	print("Query: len word1 word2 etc")

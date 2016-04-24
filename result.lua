@@ -4,8 +4,12 @@ require('torch')
 require('xlua')
 
 function reset_state(state)
+    local d_num_layers = num_layers
+    if model_type == "lstm" then
+        d_num_layers = 2 * num_layers
+    end
     if model ~= nil and model.start_s ~= nil then
-        for d = 1, 2 * num_layers do
+        for d = 1, d_num_layers do
             model.start_s[d]:zero()
         end
     end
@@ -50,13 +54,18 @@ function run_test()
     print("Test set perplexity : " .. g_f3(torch.exp(perp / (len - 1))))
 end
 
+--model type: lstm or gru
+model_type = "gru"
+
+--load model
 print("==> Loading model ...")
-local model_file = "./model/model.net"
+local model_file = "./model/"..model_type.."/model.net"
 model = torch.load(model_file)
 print("==> Loading lexicon ...")
 local word2ind_file = "./map/word2ind.t7"
 word2ind = torch.load(word2ind_file)
 
+--parameters
 local stringx = require('pl.stringx')
 local file = require('pl.file')
 local ptb_path = "./data/"
